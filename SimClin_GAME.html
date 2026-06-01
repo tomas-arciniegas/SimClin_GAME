@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SimClin — Hospital Virtual</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #03050a;
+  --bg2: #060b14;
+  --surface: #0a1020;
+  --card: #0f1929;
+  --border: rgba(255,255,255,0.06);
+  --border2: rgba(255,255,255,0.12);
+  --c1: #38bdf8;
+  --c2: #818cf8;
+  --c3: #fb923c;
+  --ok: #34d399;
+  --bad: #f87171;
+  --warn: #fbbf24;
+  --text: #e2e8f0;
+  --muted: #4b6080;
+  --dim: #1e3045;
+  --case-color: #38bdf8;
+  --case-glow: rgba(56,189,248,0.15);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;}
+
+/* SCREENS */
+.screen{position:fixed;inset:0;z-index:10;display:none;flex-direction:column;align-items:center;justify-content:center;}
+.screen.active{display:flex;}
+
+/* ═══════════════════════════════════════
+   BOOT
+═══════════════════════════════════════ */
+#boot{background:var(--bg);gap:0;}
+.boot-inner{display:flex;flex-direction:column;align-items:center;gap:0;}
+.boot-cross{
+  width:80px;height:80px;position:relative;margin-bottom:32px;
+  animation:crossPulse 2s ease-in-out infinite;
+}
+.boot-cross::before,.boot-cross::after{
+  content:'';position:absolute;background:var(--c1);border-radius:3px;
+}
+.boot-cross::before{width:16px;height:80px;left:32px;top:0;}
+.boot-cross::after{width:80px;height:16px;top:32px;left:0;}
+@keyframes crossPulse{0%,100%{filter:drop-shadow(0 0 8px var(--c1));}50%{filter:drop-shadow(0 0 24px var(--c1));}}
+.boot-title{font-family:'Syne',sans-serif;font-size:clamp(40px,7vw,80px);font-weight:800;color:var(--text);letter-spacing:-3px;margin-bottom:6px;}
+.boot-title span{color:var(--c1);}
+.boot-sub{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:4px;margin-bottom:48px;}
+.boot-loader{width:240px;height:1px;background:var(--dim);position:relative;overflow:hidden;margin-bottom:16px;}
+.boot-loader-fill{position:absolute;left:0;top:0;height:100%;background:var(--c1);width:0%;box-shadow:0 0 12px var(--c1);transition:width 2.2s cubic-bezier(.4,0,.2,1);}
+.boot-msg{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+
+/* ═══════════════════════════════════════
+   LOBBY
+═══════════════════════════════════════ */
+#lobby{
+  background:var(--bg);
+  overflow-y:auto;
+  justify-content:flex-start;
+  align-items:center;
+  padding:0;
+}
+.lobby-hero{
+  width:100%;
+  padding:60px 32px 48px;
+  text-align:center;
+  position:relative;
+  background:linear-gradient(180deg,rgba(56,189,248,0.04) 0%,transparent 100%);
+  border-bottom:1px solid var(--border);
+}
+.lobby-tag{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:'Space Mono',monospace;font-size:10px;color:var(--c1);letter-spacing:3px;
+  background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.2);
+  padding:7px 16px;margin-bottom:28px;
+}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--c1);animation:blink 1.4s ease infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.2;}}
+.lobby-title{font-family:'Syne',sans-serif;font-size:clamp(36px,6vw,72px);font-weight:800;letter-spacing:-3px;line-height:1;margin-bottom:16px;color:var(--text);}
+.lobby-title span{color:var(--c1);}
+.lobby-desc{font-size:15px;color:var(--muted);max-width:420px;margin:0 auto;line-height:1.8;}
+
+.cases-section{width:100%;max-width:1100px;padding:48px 24px 64px;}
+.cases-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:40px;}
+
+.case-card{
+  background:var(--card);
+  border:1px solid var(--border);
+  cursor:pointer;
+  transition:all 0.35s cubic-bezier(.4,0,.2,1);
+  position:relative;
+  overflow:hidden;
+  border-radius:4px;
+  display:flex;flex-direction:column;
+}
+.case-card::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,var(--case-glow) 0%,transparent 60%);
+  opacity:0;transition:opacity 0.35s;
+  pointer-events:none;
+}
+.case-card:hover{
+  border-color:var(--tile-color);
+  transform:translateY(-4px);
+  box-shadow:0 20px 60px rgba(0,0,0,0.4),0 0 0 1px var(--tile-color);
+}
+.case-card:hover::before{opacity:1;}
+.card-accent{height:3px;background:var(--tile-color);box-shadow:0 0 16px var(--tile-color);}
+.card-body{padding:28px 28px 20px;flex:1;}
+.card-tag{
+  font-family:'Space Mono',monospace;font-size:9px;color:var(--tile-color);
+  letter-spacing:3px;margin-bottom:16px;display:flex;align-items:center;gap:10px;
+}
+.card-tag::before{content:'';width:20px;height:1px;background:var(--tile-color);}
+.card-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:10px;line-height:1.2;}
+.card-patient{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.7;}
+.card-tags{display:flex;flex-wrap:wrap;gap:6px;}
+.ctag{
+  font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;
+  padding:4px 10px;border:1px solid var(--border2);color:var(--muted);
+  border-radius:2px;
+}
+.card-footer{
+  padding:16px 28px;border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card-scenes{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+.card-enter{
+  font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;
+  color:var(--tile-color);display:flex;align-items:center;gap:6px;
+  opacity:0;transform:translateX(-6px);transition:all 0.3s;
+}
+.case-card:hover .card-enter{opacity:1;transform:translateX(0);}
+.card-enter::after{content:'→';}
+
+.lobby-enter-btn{
+  display:block;margin:0 auto;
+  font-family:'Syne',sans-serif;font-size:15px;font-weight:800;letter-spacing:2px;
+  background:var(--c1);color:#000;border:none;
+  padding:20px 64px;cursor:pointer;
+  clip-path:polygon(12px 0%,100% 0%,calc(100% - 12px) 100%,0% 100%);
+  transition:all 0.25s;
+  box-shadow:0 0 40px rgba(56,189,248,0.25);
+}
+.lobby-enter-btn:hover{transform:scale(1.03);box-shadow:0 0 60px rgba(56,189,248,0.4);}
+
+/* ═══════════════════════════════════════
+   GAME SCREEN
+═══════════════════════════════════════ */
+#game{
+  background:var(--bg);
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-start;
+  height:100vh;overflow:hidden;
+}
+
+/* TOP HUD BAR */
+.g-hud{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;height:56px;
+  background:rgba(3,5,10,0.95);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;position:relative;z-index:50;
+}
+.hud-left{display:flex;align-items:center;gap:20px;}
+.hud-logo{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--c1);letter-spacing:-1px;}
+.hud-sep{width:1px;height:20px;background:var(--dim);}
+.hud-case{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;}
+.hud-right{display:flex;align-items:center;gap:20px;}
+.hud-score-wrap{display:flex;align-items:center;gap:8px;}
+.hud-star{color:var(--warn);font-size:14px;}
+.hud-score{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--warn);transition:all 0.3s;}
+.hud-score.pop{transform:scale(1.4);color:#fff;}
+.hud-prog-wrap{display:flex;align-items:center;gap:10px;}
+.hud-prog-track{width:100px;height:2px;background:var(--dim);overflow:hidden;}
+.hud-prog-fill{height:100%;background:var(--case-color);box-shadow:0 0 8px var(--case-color);transition:width 0.6s ease;width:0%;}
+.hud-prog-txt{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+.hud-back-btn{
+  font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;
+  background:none;border:1px solid var(--border);padding:6px 14px;cursor:pointer;transition:all 0.2s;
+}
+.hud-back-btn:hover{border-color:var(--muted);color:var(--text);}
+
+/* PROGRESS STEP INDICATORS */
+.g-steps-bar{
+  display:flex;align-items:center;gap:4px;
+  padding:10px 24px;
+  background:rgba(6,11,20,0.9);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.step-pip{
+  height:3px;flex:1;background:var(--dim);border-radius:1px;
+  transition:all 0.4s ease;
+}
+.step-pip.done{background:var(--case-color);box-shadow:0 0 6px var(--case-color);}
+.step-pip.current{background:var(--case-color);opacity:0.5;}
+
+/* MAIN GAME AREA */
+.g-arena{
+  flex:1;display:flex;gap:0;overflow:hidden;min-height:0;
+}
+
+/* LEFT PANEL — patient info */
+.g-left{
+  width:260px;flex-shrink:0;
+  border-right:1px solid var(--border);
+  background:var(--bg2);
+  display:flex;flex-direction:column;
+  overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:var(--dim) transparent;
+}
+.patient-card{
+  padding:24px 20px;
+  border-bottom:1px solid var(--border);
+  position:relative;
+}
+.patient-avatar-wrap{
+  width:56px;height:56px;border-radius:50%;
+  background:var(--surface);
+  border:2px solid var(--case-color);
+  box-shadow:0 0 16px var(--case-glow);
+  display:flex;align-items:center;justify-content:center;
+  font-size:26px;margin-bottom:14px;
+  position:relative;
+}
+.status-ring{
+  position:absolute;inset:-4px;border-radius:50%;
+  border:2px solid var(--case-color);
+  opacity:0.4;animation:ringPulse 2s ease infinite;
+}
+@keyframes ringPulse{0%,100%{transform:scale(1);opacity:0.4;}50%{transform:scale(1.08);opacity:0.15;}}
+.patient-name{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:4px;}
+.patient-meta{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);line-height:1.7;letter-spacing:0.5px;}
+.patient-badge{
+  display:inline-flex;align-items:center;gap:6px;margin-top:10px;
+  font-family:'Space Mono',monospace;font-size:9px;color:var(--case-color);
+  background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.15);
+  padding:4px 10px;letter-spacing:1px;
+}
+.badge-dot{width:5px;height:5px;border-radius:50%;background:var(--case-color);animation:blink 1.2s infinite;}
+
+.vitals-panel{padding:20px;}
+.vitals-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:3px;margin-bottom:14px;}
+.vitals-list{display:flex;flex-direction:column;gap:10px;}
+.vital-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 12px;background:var(--surface);border-left:2px solid var(--dim);
+  border-radius:0 2px 2px 0;
+}
+.vital-row.warn{border-left-color:var(--warn);}
+.vital-row.danger{border-left-color:var(--bad);}
+.vital-k{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);}
+.vital-v{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--text);}
+.vital-row.warn .vital-v{color:var(--warn);}
+.vital-row.danger .vital-v{color:var(--bad);}
+
+.ecg-panel{
+  padding:16px 20px;border-top:1px solid var(--border);margin-top:auto;
+}
+.ecg-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:3px;margin-bottom:10px;}
+.ecg-canvas{width:100%;height:50px;background:var(--surface);border:1px solid var(--border);display:block;}
+
+/* CENTER — main gameplay */
+.g-center{
+  flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;
+}
+
+/* Scene header */
+.scene-header{
+  padding:16px 28px;
+  border-bottom:1px solid var(--border);
+  background:rgba(6,11,20,0.8);
+  display:flex;align-items:center;gap:16px;
+  flex-shrink:0;
+}
+.scene-num{
+  font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;
+  color:var(--case-color);background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);
+  padding:5px 12px;
+}
+.scene-name{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:1px;}
+
+/* Scrollable content */
+.g-content{
+  flex:1;overflow-y:auto;padding:28px;
+  scrollbar-width:thin;scrollbar-color:var(--dim) transparent;
+}
+.g-content::-webkit-scrollbar{width:4px;}
+.g-content::-webkit-scrollbar-track{background:transparent;}
+.g-content::-webkit-scrollbar-thumb{background:var(--dim);}
+
+/* Dialogue box */
+.dialogue-box{
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-left:3px solid var(--case-color);
+  padding:20px 24px;
+  margin-bottom:24px;
+  position:relative;
+  border-radius:0 4px 4px 0;
+  animation:fadeUp 0.4s ease both;
+}
+.dialogue-speaker{
+  font-family:'Space Mono',monospace;font-size:9px;color:var(--case-color);
+  letter-spacing:2px;margin-bottom:10px;
+  display:flex;align-items:center;gap:8px;
+}
+.dialogue-speaker::before{content:'';width:16px;height:1px;background:var(--case-color);}
+.dialogue-text{font-size:14px;line-height:1.8;color:#c0d0e8;font-style:italic;}
+.speech-tag{
+  position:absolute;top:-1px;right:20px;
+  font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);
+  background:var(--surface);padding:0 8px;
+}
+
+/* Question */
+.question-block{
+  margin-bottom:24px;
+  animation:fadeUp 0.4s 0.1s ease both;
+}
+.question-label{
+  font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);
+  letter-spacing:3px;margin-bottom:10px;
+  display:flex;align-items:center;gap:10px;
+}
+.question-label::after{content:'';flex:1;height:1px;background:var(--border2);}
+.question-text{
+  font-family:'Syne',sans-serif;font-size:18px;font-weight:700;
+  line-height:1.4;color:var(--text);
+}
+
+/* OPTIONS */
+.options-grid{
+  display:flex;flex-direction:column;gap:10px;
+  animation:fadeUp 0.4s 0.2s ease both;
+}
+.opt-btn{
+  display:flex;gap:14px;align-items:flex-start;
+  background:var(--card);border:1px solid var(--border2);
+  padding:16px 20px;cursor:pointer;
+  transition:all 0.25s cubic-bezier(.4,0,.2,1);
+  text-align:left;width:100%;position:relative;overflow:hidden;
+  border-radius:3px;
+}
+.opt-btn::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,var(--case-glow),transparent);
+  opacity:0;transition:opacity 0.3s;
+}
+.opt-btn:not(:disabled):hover{border-color:var(--case-color);transform:translateX(4px);}
+.opt-btn:not(:disabled):hover::before{opacity:1;}
+.opt-btn:disabled{cursor:default;}
+.opt-letter{
+  font-family:'Syne',sans-serif;font-size:14px;font-weight:800;
+  color:var(--muted);flex-shrink:0;min-width:24px;
+  transition:color 0.3s;
+}
+.opt-btn:not(:disabled):hover .opt-letter{color:var(--case-color);}
+.opt-text{font-size:13px;line-height:1.7;color:var(--text);}
+.opt-btn.correct{
+  border-color:var(--ok);background:rgba(52,211,153,0.06);
+  animation:correctPop 0.4s cubic-bezier(.34,1.56,.64,1);
+}
+.opt-btn.correct .opt-letter{color:var(--ok);}
+.opt-btn.wrong{
+  border-color:var(--bad);background:rgba(248,113,113,0.05);
+  animation:wrongShake 0.4s ease;
+}
+.opt-btn.wrong .opt-letter{color:var(--bad);}
+@keyframes correctPop{0%{transform:scale(1);}50%{transform:scale(1.01);}100%{transform:scale(1);}}
+@keyframes wrongShake{0%,100%{transform:translateX(0);}20%{transform:translateX(-6px);}40%{transform:translateX(6px);}60%{transform:translateX(-4px);}80%{transform:translateX(4px);}}
+
+/* Feedback */
+.feedback-box{
+  display:none;
+  margin-top:16px;
+  padding:20px 24px;
+  border-radius:3px;
+  animation:fadeUp 0.35s ease both;
+}
+.feedback-box.show{display:block;}
+.feedback-box.fb-ok{background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.25);}
+.feedback-box.fb-bad{background:rgba(248,113,113,0.05);border:1px solid rgba(248,113,113,0.2);}
+.fb-head{
+  font-family:'Syne',sans-serif;font-size:13px;font-weight:800;
+  letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:10px;
+}
+.fb-head.ok{color:var(--ok);}
+.fb-head.bad{color:var(--bad);}
+.fb-body{font-size:13px;line-height:1.8;color:#94a3b8;margin-bottom:16px;}
+.next-btn{
+  font-family:'Syne',sans-serif;font-size:12px;font-weight:800;letter-spacing:2px;
+  background:var(--case-color);color:#000;border:none;
+  padding:12px 28px;cursor:pointer;
+  clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+  transition:all 0.2s;
+}
+.next-btn:hover{filter:brightness(1.15);transform:scale(1.03);}
+
+/* RIGHT PANEL — ambient */
+.g-right{
+  width:180px;flex-shrink:0;
+  border-left:1px solid var(--border);
+  background:var(--bg2);
+  display:flex;flex-direction:column;
+  padding:20px 16px;
+  gap:20px;
+}
+.g-right-title{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:3px;margin-bottom:8px;}
+.room-display{
+  background:var(--surface);border:1px solid var(--border);
+  padding:16px;text-align:center;
+  border-top:2px solid var(--case-color);
+}
+.room-icon{font-size:36px;margin-bottom:8px;display:block;filter:drop-shadow(0 0 8px var(--case-color));}
+.room-name{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;line-height:1.6;}
+.alarm-list{display:flex;flex-direction:column;gap:8px;}
+.alarm-item{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;background:var(--surface);border-left:2px solid var(--dim);
+  font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);
+}
+.alarm-item.active{border-left-color:var(--bad);color:var(--bad);}
+.alarm-item.warn-a{border-left-color:var(--warn);color:var(--warn);}
+.alarm-dot{width:5px;height:5px;border-radius:50%;background:currentColor;animation:blink 1s infinite;}
+.score-display{
+  background:var(--surface);border:1px solid var(--border);
+  padding:16px;text-align:center;
+}
+.score-display-val{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--warn);line-height:1;}
+.score-display-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;margin-top:4px;}
+
+/* ═══════════════════════════════════════
+   TRANSITION OVERLAY
+═══════════════════════════════════════ */
+#transition-overlay{
+  position:fixed;inset:0;z-index:999;
+  background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  pointer-events:none;opacity:0;
+  transition:opacity 0.3s ease;
+}
+#transition-overlay.show{opacity:1;pointer-events:all;}
+.trans-room{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--case-color);letter-spacing:3px;margin-bottom:12px;}
+.trans-bar{width:200px;height:1px;background:var(--dim);overflow:hidden;margin-bottom:12px;}
+.trans-fill{height:100%;background:var(--case-color);width:0%;transition:width 0.5s ease;}
+.trans-msg{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;}
+
+/* ═══════════════════════════════════════
+   ENTER ROOM ANIMATION
+═══════════════════════════════════════ */
+@keyframes roomEnterFade{
+  from{opacity:0;transform:translateY(20px) scale(0.98);}
+  to{opacity:1;transform:translateY(0) scale(1);}
+}
+.animate-enter{animation:roomEnterFade 0.5s cubic-bezier(.16,1,.3,1) both;}
+
+/* ═══════════════════════════════════════
+   SUCCESS
+═══════════════════════════════════════ */
+#success{
+  background:var(--bg);overflow-y:auto;
+}
+.success-inner{
+  max-width:560px;width:100%;padding:60px 32px;
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+}
+.success-trophy{font-size:80px;margin-bottom:28px;animation:trophyIn 0.7s cubic-bezier(.34,1.56,.64,1) both;}
+@keyframes trophyIn{from{opacity:0;transform:scale(0.3);}to{opacity:1;transform:scale(1);}}
+.success-grade{
+  font-family:'Syne',sans-serif;font-size:clamp(36px,6vw,64px);font-weight:800;
+  letter-spacing:-2px;margin-bottom:8px;
+}
+.grade-perfect{color:var(--ok);text-shadow:0 0 40px rgba(52,211,153,0.4);}
+.grade-good{color:var(--c1);text-shadow:0 0 40px rgba(56,189,248,0.4);}
+.grade-ok{color:var(--warn);text-shadow:0 0 40px rgba(251,191,36,0.4);}
+.grade-poor{color:var(--bad);}
+.success-case{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:3px;margin-bottom:48px;}
+.success-stats{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;
+  width:100%;margin-bottom:32px;
+}
+.stat-cell{
+  background:var(--card);border:1px solid var(--border);
+  padding:20px 12px;text-align:center;
+  animation:fadeUp 0.4s both;border-radius:3px;
+}
+.stat-cell:nth-child(2){animation-delay:0.1s;}
+.stat-cell:nth-child(3){animation-delay:0.2s;}
+.stat-val{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--warn);margin-bottom:4px;}
+.stat-lbl{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;}
+.gomita-box{
+  width:100%;background:var(--card);border:1px solid rgba(56,189,248,0.2);
+  padding:24px 32px;margin-bottom:32px;position:relative;overflow:hidden;
+  border-radius:3px;animation:fadeUp 0.4s 0.3s both;
+}
+.gomita-box::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--c1),var(--ok));}
+.gomita-icon{font-size:40px;margin-bottom:10px;display:block;}
+.gomita-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--warn);margin-bottom:4px;}
+.gomita-sub{font-size:13px;color:var(--muted);}
+.success-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;animation:fadeUp 0.4s 0.5s both;}
+.suc-btn{
+  font-family:'Syne',sans-serif;font-size:12px;font-weight:800;letter-spacing:2px;
+  padding:14px 36px;cursor:pointer;transition:all 0.2s;
+  clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+  border-radius:0;
+}
+.suc-btn.primary{background:var(--c1);color:#000;border:none;box-shadow:0 0 30px rgba(56,189,248,0.25);}
+.suc-btn.primary:hover{transform:scale(1.04);}
+.suc-btn.secondary{background:none;color:var(--muted);border:1px solid var(--border2);}
+.suc-btn.secondary:hover{border-color:var(--muted);color:var(--text);}
+
+/* PARTICLES CANVAS */
+#particles{position:fixed;inset:0;z-index:0;pointer-events:none;}
+
+/* SCANLINES */
+.scanlines{
+  position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.015) 2px,rgba(0,0,0,0.015) 4px);
+}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  .g-right{display:none;}
+  .g-left{width:220px;}
+}
+@media(max-width:640px){
+  .g-left{display:none;}
+  .g-hud{padding:0 16px;}
+  .g-content{padding:20px 16px;}
+  .scene-header{padding:12px 16px;}
+}
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+<canvas id="particles"></canvas>
+
+<!-- TRANSITION -->
+<div id="transition-overlay">
+  <div class="trans-room" id="trans-room-label">ACCEDIENDO A HABITACIÓN</div>
+  <div class="trans-bar"><div class="trans-fill" id="trans-fill"></div></div>
+  <div class="trans-msg" id="trans-msg">Preparando escenario...</div>
+</div>
+
+<!-- ══ BOOT ══ -->
+<section class="screen active" id="boot">
+  <div class="boot-inner">
+    <div class="boot-cross"></div>
+    <div class="boot-title">Sim<span>Clin</span></div>
+    <div class="boot-sub">HOSPITAL VIRTUAL · SIMULACIÓN CLÍNICA</div>
+    <div class="boot-loader"><div class="boot-loader-fill" id="boot-bar"></div></div>
+    <div class="boot-msg" id="boot-msg">Inicializando...</div>
+  </div>
+</section>
+
+<!-- ══ LOBBY ══ -->
+<section class="screen" id="lobby">
+  <div class="lobby-hero">
+    <div class="lobby-tag"><span class="live-dot"></span>3 CASOS ACTIVOS · TURNO EN CURSO</div>
+    <h1 class="lobby-title">Sim<span>Clin</span></h1>
+    <p class="lobby-desc">Simulación inmersiva de administración segura de medicamentos. Elige tu caso, entra a la sala.</p>
+  </div>
+  <div class="cases-section">
+    <div class="cases-grid">
+      <div class="case-card" style="--tile-color:#38bdf8;--case-glow:rgba(56,189,248,0.1)" onclick="startCase(1)">
+        <div class="card-accent"></div>
+        <div class="card-body">
+          <div class="card-tag">CASO 01 · ANALGESIA</div>
+          <div class="card-title">Analgesia Postquirúrgica</div>
+          <div class="card-patient">👤 Carlos Andrés Pérez · 56 años<br>Post-colecistectomía · Habitación 302</div>
+          <div class="card-tags">
+            <span class="ctag">MORFINA</span><span class="ctag">KETOROLACO</span><span class="ctag">EVA 8/10</span><span class="ctag">ALERGIA</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="card-scenes">6 ESCENAS</div>
+          <div class="card-enter">ENTRAR</div>
+        </div>
+      </div>
+      <div class="case-card" style="--tile-color:#818cf8;--case-glow:rgba(129,140,248,0.1)" onclick="startCase(2)">
+        <div class="card-accent" style="background:#818cf8;box-shadow:0 0 16px #818cf8;"></div>
+        <div class="card-body">
+          <div class="card-tag" style="color:#818cf8;">CASO 02 · ANTICOAGULACIÓN</div>
+          <div class="card-title">Anticoagulación en TVP</div>
+          <div class="card-patient">👤 María Elena Torres · 68 años<br>Trombosis Venosa Profunda · H.215</div>
+          <div class="card-tags">
+            <span class="ctag">HEPARINA SC</span><span class="ctag">WARFARINA</span><span class="ctag">TTPa/INR</span><span class="ctag">SANGRADO</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="card-scenes">6 ESCENAS</div>
+          <div class="card-enter" style="color:#818cf8;">ENTRAR</div>
+        </div>
+      </div>
+      <div class="case-card" style="--tile-color:#fb923c;--case-glow:rgba(251,146,60,0.1)" onclick="startCase(3)">
+        <div class="card-accent" style="background:#fb923c;box-shadow:0 0 16px #fb923c;"></div>
+        <div class="card-body">
+          <div class="card-tag" style="color:#fb923c;">CASO 03 · ANTIARRÍTMICOS</div>
+          <div class="card-title">Fibrilación Auricular</div>
+          <div class="card-patient">👤 Jorge Iván Castillo · 72 años<br>FA nueva aparición · Urgencias</div>
+          <div class="card-tags">
+            <span class="ctag">AMIODARONA</span><span class="ctag">INCOMPATIBILIDAD</span><span class="ctag">FA</span><span class="ctag">ACV</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="card-scenes">4 ESCENAS</div>
+          <div class="card-enter" style="color:#fb923c;">ENTRAR</div>
+        </div>
+      </div>
+    </div>
+    <button class="lobby-enter-btn" onclick="startCase(1)">▶ ENTRAR AL HOSPITAL</button>
+  </div>
+</section>
+
+<!-- ══ GAME ══ -->
+<section class="screen" id="game">
+  <!-- HUD -->
+  <div class="g-hud">
+    <div class="hud-left">
+      <div class="hud-logo">SimClin</div>
+      <div class="hud-sep"></div>
+      <div class="hud-case" id="hud-case">CASO 1 · H.302</div>
+    </div>
+    <div class="hud-right">
+      <div class="hud-prog-wrap">
+        <div class="hud-prog-track"><div class="hud-prog-fill" id="hud-prog"></div></div>
+        <div class="hud-prog-txt" id="hud-prog-txt">0/6</div>
+      </div>
+      <div class="hud-score-wrap">
+        <span class="hud-star">★</span>
+        <span class="hud-score" id="hud-score">0</span>
+      </div>
+      <button class="hud-back-btn" onclick="goLobby()">← SALIR</button>
+    </div>
+  </div>
+  <!-- STEP PIPS -->
+  <div class="g-steps-bar" id="g-steps-bar"></div>
+  <!-- ARENA -->
+  <div class="g-arena">
+    <!-- LEFT -->
+    <div class="g-left">
+      <div class="patient-card">
+        <div class="patient-avatar-wrap">
+          <span id="p-avatar">🧑</span>
+          <div class="status-ring"></div>
+        </div>
+        <div class="patient-name" id="p-name">Carlos Andrés Pérez</div>
+        <div class="patient-meta" id="p-meta">56 años · 82 kg<br>Post-colecistectomía</div>
+        <div class="patient-badge"><span class="badge-dot"></span><span id="p-room">H.302</span></div>
+      </div>
+      <div class="vitals-panel">
+        <div class="vitals-label">SIGNOS VITALES</div>
+        <div class="vitals-list" id="vitals-list"></div>
+      </div>
+      <div class="ecg-panel">
+        <div class="ecg-label">ECG MONITOR</div>
+        <canvas class="ecg-canvas" id="ecg-canvas" width="220" height="50"></canvas>
+      </div>
+    </div>
+    <!-- CENTER -->
+    <div class="g-center">
+      <div class="scene-header">
+        <div class="scene-num" id="scene-num">ESCENA 1</div>
+        <div class="scene-name" id="scene-name">Evaluación Inicial</div>
+      </div>
+      <div class="g-content" id="g-content">
+        <!-- injected -->
+      </div>
+    </div>
+    <!-- RIGHT -->
+    <div class="g-right">
+      <div>
+        <div class="g-right-title">SALA</div>
+        <div class="room-display">
+          <span class="room-icon" id="r-icon">🛏️</span>
+          <div class="room-name" id="r-name">HABITACIÓN 302<br>PISO CIRUGÍA</div>
+        </div>
+      </div>
+      <div>
+        <div class="g-right-title">ALERTAS</div>
+        <div class="alarm-list" id="alarm-list"></div>
+      </div>
+      <div style="margin-top:auto;">
+        <div class="score-display">
+          <div class="score-display-val" id="side-score">0</div>
+          <div class="score-display-label">PUNTOS</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ SUCCESS ══ -->
+<section class="screen" id="success">
+  <div class="success-inner">
+    <span class="success-trophy" id="suc-trophy">🏆</span>
+    <div class="success-grade" id="suc-grade">¡EXCELENTE!</div>
+    <div class="success-case" id="suc-case">CASO 1 · ANALGESIA POSTQUIRÚRGICA</div>
+    <div class="success-stats">
+      <div class="stat-cell">
+        <div class="stat-val" id="suc-pts">0</div>
+        <div class="stat-lbl">PUNTOS</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-val" id="suc-pct">0%</div>
+        <div class="stat-lbl">PRECISIÓN</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-val" id="suc-correct">0/0</div>
+        <div class="stat-lbl">CORRECTAS</div>
+      </div>
+    </div>
+    <div class="gomita-box">
+      <span class="gomita-icon">🍬</span>
+      <div class="gomita-title">¡GANASTE TU GOMITA!</div>
+      <div class="gomita-sub">Preséntate con tu docente para reclamarla</div>
+    </div>
+    <div class="success-btns">
+      <button class="suc-btn primary" onclick="goLobby()">🏠 OTROS CASOS</button>
+      <button class="suc-btn secondary" onclick="retryCase()">↺ REPETIR CASO</button>
+    </div>
+  </div>
+</section>
+
+<script>
+// ══════════════════════════════════════════════
+// PARTICLES
+// ══════════════════════════════════════════════
+(function(){
+  const cvs=document.getElementById('particles');
+  const ctx=cvs.getContext('2d');
+  let W,H,pts=[];
+  function resize(){W=cvs.width=innerWidth;H=cvs.height=innerHeight;}
+  resize();window.addEventListener('resize',resize);
+  for(let i=0;i<50;i++)
+    pts.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.25,r:Math.random()*1+.3,a:Math.random()*.3+.05});
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p=>{
+      p.x+=p.vx;p.y+=p.vy;
+      if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(56,189,248,${p.a})`;ctx.fill();
+    });requestAnimationFrame(draw);
+  }draw();
+})();
+
+// ══════════════════════════════════════════════
+// ECG
+// ══════════════════════════════════════════════
+let ecgT=0,ecgAnimId=null;
+function ecgY(x){
+  const m=x%80;
+  if(m<10)return 25+Math.sin(m/10*Math.PI)*1.5;
+  if(m<18)return 25-(m-10)*2;
+  if(m<22)return 25+(m-18)*8;
+  if(m<26)return 25-(m-22)*5;
+  if(m<30)return 25+(m-26)*1.5;
+  if(m<40)return 25+Math.sin((m-30)/10*Math.PI)*1.5;
+  return 25;
+}
+function drawECG(){
+  const cvs=document.getElementById('ecg-canvas');if(!cvs)return;
+  const ctx=cvs.getContext('2d');
+  const color=getComputedStyle(document.documentElement).getPropertyValue('--case-color').trim()||'#38bdf8';
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.shadowColor=color;ctx.shadowBlur=4;
+  ctx.beginPath();
+  for(let x=0;x<=cvs.width;x+=2){
+    const y=ecgY(x*.36+ecgT);
+    x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ecgT+=1.5;ecgAnimId=requestAnimationFrame(drawECG);
+}
+drawECG();
+
+// ══════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════
+const bootMsgs=['Iniciando sistema clínico...','Cargando protocolos...','Calibrando monitores...','Verificando expedientes...','Sistema listo.'];
+let bmi=0;
+const bootBar=document.getElementById('boot-bar');
+const bootMsg=document.getElementById('boot-msg');
+setTimeout(()=>{bootBar.style.width='100%';},80);
+const bootTick=setInterval(()=>{
+  bmi++;if(bmi<bootMsgs.length)bootMsg.textContent=bootMsgs[bmi];
+  if(bmi>=bootMsgs.length-1){clearInterval(bootTick);setTimeout(()=>showScreen('lobby'),500);}
+},550);
+
+// ══════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════
+const CASES={
+  1:{
+    color:'#38bdf8',glow:'rgba(56,189,248,0.15)',
+    label:'CASO 1 · ANALGESIA POSTQUIRÚRGICA',room:'H.302',roomFull:'HABITACIÓN 302 · PISO CIRUGÍA',
+    icon:'🛏️',
+    alarms:[{t:'EVA 8/10',c:'active'},{t:'ALERGIA PARAC.',c:'active'},{t:'FC NORMAL',c:''}],
+    patient:{name:'Carlos Andrés Pérez',age:'56 años · 82 kg',meta:'Post-colecistectomía laparoscópica\nHTA, DM II',avatar:'🧑'},
+    vitals:[{k:'FC',v:'92 lpm',c:''},{k:'TA',v:'132/80',c:''},{k:'FR',v:'20 rpm',c:''},{k:'SpO₂',v:'96%',c:''},{k:'Temp',v:'36.8°C',c:''},{k:'EVA',v:'8/10',c:'warn'}],
+    steps:[
+      {scene:'ESCENA 1',name:'Habitación 302 — Ingreso',q:'¿Cuál es la PRIMERA acción al ingresar a la habitación?',
+        dialogue:{speaker:'CARLOS ANDRÉS — PACIENTE',text:'"Enfermero/a, me duele mucho la herida quirúrgica. ¿Me puede ayudar por favor?"'},
+        opts:[
+          {t:'Valorar el dolor con escala EVA antes de cualquier intervención farmacológica.',ok:true,fb:'✅ Correcto. EVA 8/10 — dolor severo, localizado en la herida. La valoración precede siempre a la acción.'},
+          {t:'Ir al carro de medicamentos y preparar la analgesia prescrita de inmediato.',ok:false,fb:'❌ Nunca se administra medicación sin valorar primero. EVA y características del dolor guían la intervención.'},
+          {t:'Avisar al médico y esperar nuevas indicaciones antes de actuar.',ok:false,fb:'❌ Ya existe prescripción vigente. Su rol es valorar y administrar correctamente, no esperar nuevas órdenes.'}]},
+      {scene:'ESCENA 1',name:'Revisión de la Prescripción',q:'¿Qué hace ANTES de preparar cualquier medicamento?',
+        dialogue:{speaker:'PRESCRIPCIÓN MÉDICA',text:'Morfina 4mg IV c/4h · Acetaminofén 1g IV c/6h · Ketorolaco 30mg IV c/8h'},
+        opts:[
+          {t:'Verificar alergias revisando la historia clínica e interrogando directamente al paciente.',ok:true,fb:'✅ ¡ALERGIA AL PARACETAMOL IDENTIFICADA! Acaba de prevenir un evento adverso grave. Notifique al médico.'},
+          {t:'Preparar el Acetaminofén 1g IV porque está prescrito y autorizado.',ok:false,fb:'❌ ALERTA CRÍTICA: El paciente tiene ALERGIA al paracetamol. Administrarlo causaría eritema, prurito y dificultad respiratoria.'},
+          {t:'Verificar solo nombre del medicamento y dosis en el rótulo.',ok:false,fb:'❌ Los 10 correctos incluyen siempre verificación de alergias. Nombre y dosis solos son insuficientes.'}]},
+      {scene:'ESCENA 2',name:'Los 10 Correctos',q:'¿Cuáles son los 10 correctos que aplica en este momento?',
+        dialogue:{speaker:'SITUACIÓN CLÍNICA',text:'Alergia identificada y notificada. Acetaminofén suspendido. Procede con los medicamentos seguros.'},
+        opts:[
+          {t:'Paciente · Medicamento · Dosis · Vía · Hora · Registro · Educación · Razón · Respuesta · Caducidad.',ok:true,fb:'✅ Perfecto. Los 10 correctos son el pilar de la seguridad. Cada uno previene un tipo diferente de error.'},
+          {t:'Basta con verificar paciente, medicamento y dosis — los demás son secundarios.',ok:false,fb:'❌ Todos los 10 son obligatorios. Omitir la vía puede causar eventos adversos graves.'},
+          {t:'Los 10 correctos solo aplican para medicamentos de alto riesgo como quimioterapia.',ok:false,fb:'❌ Los 10 correctos aplican para TODOS los medicamentos, en TODOS los pacientes, en TODAS las administraciones.'}]},
+      {scene:'ESCENA 3',name:'Cálculo de Morfina',q:'Morfina 4mg IV. Ampolla disponible: 10mg/ml. ¿Cómo calcula y prepara?',
+        dialogue:{speaker:'CARRO DE MEDICAMENTOS',text:'Morfina 10mg/ml · Ketorolaco 30mg/ml · SSN 0.9% disponible'},
+        opts:[
+          {t:'4mg ÷ 10mg/ml = 0.4 ml + 9.6 ml SSN 0.9% = 10 ml totales. Administrar IV lento en 5–10 min.',ok:true,fb:'✅ Cálculo perfecto. Diluir opioides reduce riesgo de depresión respiratoria. Monitorizar FR y SpO₂ durante infusión.'},
+          {t:'Tomar 1 ml completo (= 10 mg) porque es más fácil de medir con precisión.',ok:false,fb:'❌ ERROR DE DOSIS: Administrar 10mg cuando se prescribieron 4mg es 2.5x la dosis. Riesgo de depresión respiratoria severa.'},
+          {t:'Administrar 0.4 ml directamente sin diluir en bolo rápido.',ok:false,fb:'❌ La dosis es correcta pero el bolo rápido sin dilución aumenta efectos adversos. Opioides IV siempre se diluyen.'}]},
+      {scene:'ESCENA 3',name:'Ketorolaco IV',q:'EVA bajó a 4/10. Ahora administra Ketorolaco 30mg IV. ¿Técnica correcta?',
+        dialogue:{speaker:'CARLOS ANDRÉS — PACIENTE',text:'"El dolor ha disminuido bastante, ya puedo respirar mejor."'},
+        opts:[
+          {t:'Diluir en 50 cc SSN 0.9% y pasar en infusión de 15–30 minutos con monitorización.',ok:true,fb:'✅ Correcto. Ketorolaco IV rápido causa dolor en sitio, broncoespasmo e hipotensión. Dilución en 50cc + infusión lenta es la técnica segura.'},
+          {t:'Administrar en bolo IV directo rápido para que actúe más rápido.',ok:false,fb:'❌ El ketorolaco IV directo puede causar broncoespasmo, hipotensión y dolor intenso. Siempre diluir e infundir lentamente.'},
+          {t:'Mezclarlo con la morfina en la misma jeringa para ahorrar tiempo.',ok:false,fb:'❌ Nunca mezclar medicamentos sin verificar compatibilidad documentada. Morfina y ketorolaco se administran separados.'}]},
+      {scene:'ESCENA 3',name:'Reevaluación Final',q:'30 minutos post-analgesia. ¿Acción prioritaria de enfermería?',
+        dialogue:{speaker:'CARLOS ANDRÉS — PACIENTE',text:'"Me siento mucho mejor, el dolor bajó bastante." FC:78 · TA:125/78 · FR:16 · SpO₂:97% · EVA:3/10'},
+        opts:[
+          {t:'Reevaluar con EVA, registrar signos vitales y documentar la respuesta terapéutica en HC.',ok:true,fb:'✅ Excelente. La reevaluación cierra el ciclo. EVA 3/10 = respuesta positiva. Se documenta hora, respuesta, nueva EVA y SV. ¡CASO COMPLETADO!'},
+          {t:'Retirarse porque el paciente ya mejoró y no necesita más atención.',ok:false,fb:'❌ La monitorización post-administración es obligatoria. Con morfina: vigilar SpO₂, FR y consciencia al menos 30 minutos.'},
+          {t:'Administrar otra dosis de morfina porque EVA 3/10 sigue siendo dolor.',ok:false,fb:'❌ EVA 3/10 es analgesia efectiva. Otra dosis sin prescripción y fuera del intervalo c/4h es una falta grave.'}]}
+    ]
+  },
+  2:{
+    color:'#818cf8',glow:'rgba(129,140,248,0.15)',
+    label:'CASO 2 · ANTICOAGULACIÓN — TVP',room:'H.215',roomFull:'HABITACIÓN 215 · PISO MEDICINA INTERNA',
+    icon:'💉',
+    alarms:[{t:'TVP ACTIVA',c:'active'},{t:'HGI RECIENTE',c:'warn-a'},{t:'IRC LEVE',c:'warn-a'}],
+    patient:{name:'María Elena Torres',age:'68 años · 70 kg',meta:'Trombosis Venosa Profunda\nIRC leve · HTA controlada',avatar:'👩'},
+    vitals:[{k:'FC',v:'88 lpm',c:''},{k:'TA',v:'138/85',c:''},{k:'FR',v:'18 rpm',c:''},{k:'SpO₂',v:'97%',c:''},{k:'Crea',v:'1.4 mg/dL',c:'warn'},{k:'Temp',v:'37.1°C',c:''}],
+    steps:[
+      {scene:'ESCENA 1',name:'Valoración Previa',q:'¿Qué verifica ANTES de preparar la Heparina 5000 UI SC?',
+        dialogue:{speaker:'MARÍA ELENA — PACIENTE',text:'"Doctora me dijo que me van a poner una inyección para la coagulación de sangre."'},
+        opts:[
+          {t:'Revisar TTPa, INR, plaquetas y buscar signos de sangrado activo.',ok:true,fb:'✅ TTPa 32s (normal) · INR 1.1 · Plaquetas 210.000/µL · Sin sangrado activo. Condiciones seguras para administrar.'},
+          {t:'Preparar y administrar directamente — la prescripción médica ya lo autoriza.',ok:false,fb:'❌ Los anticoagulantes son MEDICAMENTOS DE ALTO RIESGO. Sin verificar parámetros basales puede haber hemorragia grave.'},
+          {t:'Solo verificar que la jeringa tenga la dosis correcta antes de administrar.',ok:false,fb:'❌ La dosis es necesaria pero insuficiente. Los parámetros de coagulación determinan si es seguro administrar.'}]},
+      {scene:'ESCENA 1',name:'Antecedente Crítico',q:'En la HC: hemorragia digestiva hace 2 semanas. ¿Qué hace?',
+        dialogue:{speaker:'HISTORIA CLÍNICA',text:'"Hemorragia digestiva alta hace 14 días — manejo conservador — resuelta."'},
+        opts:[
+          {t:'Suspender la preparación y notificar al médico para que reevalúe el riesgo-beneficio.',ok:true,fb:'✅ Correcto. El médico evalúa y, dado el alto riesgo trombótico de la TVP activa, confirma bajo monitoreo estricto. La decisión es médica.'},
+          {t:'Administrar la mitad de la dosis por cuenta propia para reducir el riesgo.',ok:false,fb:'❌ GRAVE: Modificar dosis sin orden médica es una falta ética y legal. Los anticoagulantes nunca se ajustan unilateralmente.'},
+          {t:'No es relevante porque el sangrado fue hace 2 semanas y ya está resuelto.',ok:false,fb:'❌ Una hemorragia digestiva reciente es contraindicación relativa. El médico DEBE conocer este antecedente.'}]},
+      {scene:'ESCENA 2',name:'Técnica SC de Heparina',q:'¿Cuál es la técnica CORRECTA para inyección SC de heparina?',
+        dialogue:{speaker:'PREPARACIÓN CLÍNICA',text:'Jeringa de heparina sódica 5000 UI lista. Zona abdominal periumbilical disponible.'},
+        opts:[
+          {t:'Zona periumbilical (≥5 cm del ombligo), pliegue cutáneo, aguja 90°, SIN aspirar, SIN masajear, rotando sitios.',ok:true,fb:'✅ Técnica perfecta. Pliegue evita IM, no aspirar evita hematoma, no masajear preserva absorción uniforme.'},
+          {t:'Zona glútea, inserción 45°, aspirar para confirmar no sangre, masajear para absorber.',ok:false,fb:'❌ Múltiples errores: Glúteo no es zona recomendada. Aspirar rompe capilares. Masajear altera absorción y favorece moretones.'},
+          {t:'Zona periumbilical, sin pliegue, inserción 45°, aspirar suavemente.',ok:false,fb:'❌ Sin pliegue se arriesga inyección IM. Y SIEMPRE: NO aspirar en SC de heparina.'}]},
+      {scene:'ESCENA 3',name:'Signos de Sangrado',q:'6h post-dosis: "morado grande + encía sangrando". ¿Qué hace?',
+        dialogue:{speaker:'MARÍA ELENA — PACIENTE',text:'"Enfermera, mire este morado tan grande aquí donde me pusieron. Y me sangró la encía al cepillarme."'},
+        opts:[
+          {t:'Valorar extensión del sangrado, tomar SV, notificar al médico y NO dar próxima dosis hasta nueva orden.',ok:true,fb:'✅ Sangrado espontáneo en múltiples sitios = señal de sobreanticoagulación. El médico decide si suspender o antagonizar.'},
+          {t:'Decirle que el morado es normal en inyecciones SC y continuar con el plan.',ok:false,fb:'❌ Hematoma grande + sangrado de encías espontáneo = posible sobreanticoagulación. Requiere evaluación médica inmediata.'},
+          {t:'Administrar vitamina K para revertir el efecto de la heparina.',ok:false,fb:'❌ ERROR FARMACOLÓGICO: Vitamina K es antídoto de WARFARINA, NO de heparina. El antídoto de heparina es SULFATO DE PROTAMINA.'}]},
+      {scene:'ESCENA 4',name:'Traslape a Warfarina',q:'Día 5: inicia warfarina con IRC leve. ¿Consideración clave del traslape?',
+        dialogue:{speaker:'ORDEN MÉDICA',text:'"Iniciar warfarina 5mg VO. Mantener heparina en traslape."'},
+        opts:[
+          {t:'IRC altera sensibilidad a warfarina; monitorear INR frecuente. Traslape mínimo 5 días Y hasta INR 2–3 por 2 días consecutivos.',ok:true,fb:'✅ La regla del traslape evita "ventana de hipercoagulabilidad". IRC puede aumentar sensibilidad → dosis menores y controles más frecuentes.'},
+          {t:'Suspender heparina el mismo día que inicia warfarina para evitar doble anticoagulación.',ok:false,fb:'❌ Sin esperar efecto de warfarina se genera una "ventana" sin anticoagulación efectiva. Riesgo de embolismo pulmonar.'},
+          {t:'La IRC no afecta warfarina porque se metaboliza en hígado, no en riñón.',ok:false,fb:'❌ La IRC altera unión a proteínas plasmáticas y sensibilidad. Requiere ajustes y monitoreo más estricto.'}]},
+      {scene:'ESCENA 4',name:'Educación al Paciente',q:'"¿Qué alimentos debo evitar con esta pastilla de la coagulación?"',
+        dialogue:{speaker:'MARÍA ELENA — PACIENTE',text:'"Me dijeron que tengo que cuidarme mucho con lo que como. ¿Puedo comer ensalada y verduras verdes?"'},
+        opts:[
+          {t:'No eliminar vitamina K sino mantenerla CONSTANTE. Evitar cambios bruscos en verduras. No AINES sin consultar. Evitar alcohol.',ok:true,fb:'✅ Educación correcta. La consistencia dietética es clave: cambios bruscos en vitamina K alteran el INR. Puede comer espinaca, siempre la misma cantidad.'},
+          {t:'Prohibir completamente todos los alimentos verdes: espinaca, brócoli, cilantro.',ok:false,fb:'❌ Prohibir todos los alimentos verdes afecta la nutrición. La clave es CONSISTENCIA, no eliminación.'},
+          {t:'No hay restricciones, el médico ya ajusta la dosis para compensar cualquier alimento.',ok:false,fb:'❌ Sin educación las variaciones de INR aumentan riesgo de sangrado o nuevo trombo. La educación es parte esencial del cuidado.'}]}
+    ]
+  },
+  3:{
+    color:'#fb923c',glow:'rgba(251,146,60,0.15)',
+    label:'CASO 3 · ANTIARRÍTMICOS — FA',room:'URGENCIAS',roomFull:'URGENCIAS · MONITOREO CONTINUO',
+    icon:'❤️‍🔥',
+    alarms:[{t:'FC 142 lpm',c:'active'},{t:'SpO₂ 93%',c:'active'},{t:'TA BAJA',c:'active'}],
+    patient:{name:'Jorge Iván Castillo',age:'72 años · 78 kg',meta:'FA nueva aparición · FE 35%\nFalla cardíaca',avatar:'👨'},
+    vitals:[{k:'FC',v:'142 lpm',c:'danger'},{k:'TA',v:'95/60',c:'danger'},{k:'FR',v:'24 rpm',c:'warn'},{k:'SpO₂',v:'93%',c:'danger'},{k:'Ritmo',v:'FA',c:'warn'},{k:'Temp',v:'37.3°C',c:''}],
+    steps:[
+      {scene:'ESCENA 1',name:'Urgencias — Evaluación',q:'¿Qué evalúa PRIORITARIAMENTE antes de administrar amiodarona?',
+        dialogue:{speaker:'JORGE IVÁN — PACIENTE',text:'"Siento que el corazón se me va a salir del pecho, me falta mucho el aire." Monitor: FA 142 lpm · TA 95/60'},
+        opts:[
+          {t:'Estabilidad hemodinámica: TA, FC, consciencia, perfusión periférica. Confirmar acceso venoso permeable.',ok:true,fb:'✅ Correcto. Paciente inestable: TA baja, FC muy alta, SpO₂ reducida. Esta evaluación guía la urgencia y tipo de intervención.'},
+          {t:'Preparar amiodarona directamente — es urgente y no hay tiempo para evaluación.',ok:false,fb:'❌ La urgencia no elimina la evaluación. Antiarrítmico potente sin conocer estado hemodinámico puede causar colapso cardiovascular.'},
+          {t:'Esperar resultado de laboratorio completo antes de actuar.',ok:false,fb:'❌ FA hemodinámicamente inestable no espera laboratorio. La evaluación clínica inmediata e intervención rápida son la prioridad.'}]},
+      {scene:'ESCENA 1',name:'Incompatibilidad Crítica',q:'El residente ordena: "Dilúyala en 100cc de SSN 0.9%". ¿Qué hace?',
+        dialogue:{speaker:'RESIDENTE DE URGENCIAS',text:'Amiodarona 150mg lista. El residente, apresurado, da la orden verbal. Usted sabe algo importante...'},
+        opts:[
+          {t:'Alertar: amiodarona IV es INCOMPATIBLE con SSN 0.9%. Diluyente correcto es DAD 5%. Solicitar corrección de la orden.',ok:true,fb:'✅ Excelente acción de seguridad. Amiodarona + SSN = precipitados visibles, fármaco inactivado, obstrucción del catéter. Orden corregida: DAD 5%.'},
+          {t:'Preparar en SSN como ordenó el médico — él conoce el protocolo.',ok:false,fb:'❌ ERROR CRÍTICO: Seguir una orden incorrecta sabiendo que es errónea es una falla de seguridad. Amiodarona + SSN = precipitación e inactivación.'},
+          {t:'Preparar en SSN pero añadir bicarbonato para evitar la precipitación.',ok:false,fb:'❌ No existe protocolo de corrección con bicarbonato. La única solución correcta es usar DAD 5% como diluyente.'}]},
+      {scene:'ESCENA 2',name:'Hipotensión Durante Infusión',q:'5 minutos: TA 80/50, "me siento mareado". ¿Qué hace?',
+        dialogue:{speaker:'MONITOR + JORGE IVÁN',text:'TA 80/50 mmHg ⚠️ · FC 138 lpm · SpO₂ 91%. "Enfermero/a, me mareo, siento que me voy a desmayar."'},
+        opts:[
+          {t:'Reducir velocidad, Trendelenburg, notificar médico inmediato, monitorizar FC/TA/SpO₂, preparar bolo SSN si se ordena.',ok:true,fb:'✅ Manejo correcto. Hipotensión por amiodarona IV es relacionada con velocidad de infusión. Reducir velocidad suele ser suficiente.'},
+          {t:'Suspender definitivamente la amiodarona y documentar el evento adverso.',ok:false,fb:'❌ Suspender definitivamente es decisión médica. Su rol: actuar sobre síntomas (velocidad, Trendelenburg) y notificar.'},
+          {t:'Acelerar la infusión para completar el bolo rápido y que el efecto pase antes.',ok:false,fb:'❌ PELIGROSO. Acelerar amiodarona EMPEORA la hipotensión. Es dosis y velocidad dependiente: más rápido = más hipotensión.'}]},
+      {scene:'ESCENA 3',name:'Post-Cardioversión',q:'45 minutos: ECG sinusal, FC 78 lpm. ¿Acción prioritaria?',
+        dialogue:{speaker:'JORGE IVÁN — PACIENTE',text:'"Ya me siento mucho mejor, el corazón ya está bien." FC:78 · TA:108/70 · SpO₂:96% · Ritmo sinusal.'},
+        opts:[
+          {t:'Mantener monitorización continua, continuar infusión de mantenimiento y registrar conversión con hora exacta.',ok:true,fb:'✅ El período post-cardioversión es ALTO RIESGO para arritmias secundarias y bradiarritmias por amiodarona residual. Vigilancia no se reduce.'},
+          {t:'Retirar electrodos del monitor porque el ritmo ya normalizó.',ok:false,fb:'❌ PELIGROSO. Retirar monitorización puede perder una recidiva de FA o bradiarritmia grave. Monitoreo continuo es obligatorio.'},
+          {t:'Suspender infusión de mantenimiento porque ya se logró el objetivo.',ok:false,fb:'❌ La infusión de mantenimiento es parte del esquema prescrito. Suspenderla sin orden puede favorecer recidiva. Solo el médico decide.'}]}
+    ]
+  }
+};
+
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+let activeCase=1,activeStep=0,score=0,correctCount=0,answered=false;
+
+// ══════════════════════════════════════════════
+// SCREEN NAV
+// ══════════════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function goLobby(){showScreen('lobby');}
+function retryCase(){startCase(activeCase);}
+
+// ══════════════════════════════════════════════
+// START CASE — with room transition animation
+// ══════════════════════════════════════════════
+function startCase(num){
+  const c=CASES[num];
+  // Show transition overlay
+  const ov=document.getElementById('transition-overlay');
+  const transLabel=document.getElementById('trans-room-label');
+  const transMsg=document.getElementById('trans-msg');
+  const transFill=document.getElementById('trans-fill');
+
+  transLabel.textContent='ACCEDIENDO A '+c.room;
+  transMsg.textContent='Preparando escenario clínico...';
+  transFill.style.width='0%';
+  ov.classList.add('show');
+
+  // Animate fill
+  setTimeout(()=>{transFill.style.transition='width 0.7s ease';transFill.style.width='100%';},50);
+  setTimeout(()=>{transMsg.textContent='Cargando expediente del paciente...';},300);
+  setTimeout(()=>{transMsg.textContent='Listo. Entrando...';},600);
+
+  setTimeout(()=>{
+    activeCase=num;activeStep=0;score=0;correctCount=0;answered=false;
+    setupCase();
+    showScreen('game');
+    ov.classList.remove('show');
+    transFill.style.transition='none';
+    renderStep(true);
+  },900);
+}
+
+function setupCase(){
+  const c=CASES[activeCase];
+  // Set CSS color
+  document.documentElement.style.setProperty('--case-color',c.color);
+  document.documentElement.style.setProperty('--case-glow',c.glow);
+  // HUD
+  document.getElementById('hud-case').textContent='CASO '+activeCase+' · '+c.room;
+  document.getElementById('hud-score').textContent='0';
+  document.getElementById('hud-prog').style.width='0%';
+  document.getElementById('hud-prog-txt').textContent='0/'+c.steps.length;
+  // Patient
+  document.getElementById('p-avatar').textContent=c.patient.avatar;
+  document.getElementById('p-name').textContent=c.patient.name;
+  document.getElementById('p-meta').textContent=c.patient.meta.replace(/\n/g,'\n');
+  document.getElementById('p-meta').style.whiteSpace='pre-line';
+  document.getElementById('p-room').textContent=c.room;
+  // Room
+  document.getElementById('r-icon').textContent=c.icon;
+  document.getElementById('r-name').textContent=c.roomFull;
+  // Vitals
+  const vl=document.getElementById('vitals-list');
+  vl.innerHTML=c.vitals.map(v=>`
+    <div class="vital-row ${v.c}">
+      <span class="vital-k">${v.k}</span>
+      <span class="vital-v">${v.v}</span>
+    </div>`).join('');
+  // Alarms
+  const al=document.getElementById('alarm-list');
+  al.innerHTML=c.alarms.map(a=>`
+    <div class="alarm-item ${a.c}">
+      ${a.c?'<span class="alarm-dot"></span>':''}${a.t}
+    </div>`).join('');
+  // Step pips
+  const sb=document.getElementById('g-steps-bar');
+  sb.innerHTML=c.steps.map((_,i)=>`<div class="step-pip" id="pip-${i}"></div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// RENDER STEP
+// ══════════════════════════════════════════════
+function renderStep(entering){
+  const c=CASES[activeCase];
+  const step=c.steps[activeStep];
+  const total=c.steps.length;
+
+  // Progress
+  document.getElementById('hud-prog').style.width=((activeStep/total)*100)+'%';
+  document.getElementById('hud-prog-txt').textContent=activeStep+'/'+total;
+  document.getElementById('side-score').textContent=score;
+  // Pips
+  for(let i=0;i<total;i++){
+    const pip=document.getElementById('pip-'+i);
+    if(pip){
+      pip.className='step-pip'+(i<activeStep?' done':(i===activeStep?' current':''));
+    }
+  }
+  // Scene labels
+  document.getElementById('scene-num').textContent=step.scene;
+  document.getElementById('scene-name').textContent=step.name;
+
+  // Options HTML
+  const optsHTML=step.opts.map((o,i)=>`
+    <button class="opt-btn" id="opt${i}" onclick="handleAnswer(${i})">
+      <span class="opt-letter">${String.fromCharCode(65+i)}</span>
+      <span class="opt-text">${o.t}</span>
+    </button>`).join('');
+
+  const html=`
+    <div class="dialogue-box animate-enter">
+      <div class="dialogue-speaker">${step.dialogue.speaker}</div>
+      <div class="dialogue-text">${step.dialogue.text}</div>
+    </div>
+    <div class="question-block">
+      <div class="question-label">PREGUNTA</div>
+      <div class="question-text">${step.q}</div>
+    </div>
+    <div class="options-grid">${optsHTML}</div>
+    <div class="feedback-box" id="fb-box"></div>
+  `;
+
+  const content=document.getElementById('g-content');
+  if(entering){
+    content.style.opacity='0';
+    content.style.transform='translateY(16px)';
+    content.innerHTML=html;
+    content.scrollTop=0;
+    setTimeout(()=>{
+      content.style.transition='opacity 0.4s ease,transform 0.4s ease';
+      content.style.opacity='1';content.style.transform='translateY(0)';
+    },20);
+    setTimeout(()=>{content.style.transition='';},500);
+  } else {
+    content.innerHTML=html;
+    content.scrollTop=0;
+  }
+  answered=false;
+}
+
+// ══════════════════════════════════════════════
+// HANDLE ANSWER
+// ══════════════════════════════════════════════
+function handleAnswer(idx){
+  if(answered)return;
+  answered=true;
+  const step=CASES[activeCase].steps[activeStep];
+  const opt=step.opts[idx];
+  const total=CASES[activeCase].steps.length;
+
+  document.querySelectorAll('.opt-btn').forEach(b=>b.disabled=true);
+  document.getElementById('opt'+idx).classList.add(opt.ok?'correct':'wrong');
+  if(!opt.ok){
+    step.opts.forEach((o,i)=>{if(o.ok)document.getElementById('opt'+i).classList.add('correct');});
+  } else {
+    score+=10;correctCount++;
+    const sc=document.getElementById('hud-score');
+    sc.textContent=score;
+    document.getElementById('side-score').textContent=score;
+    sc.classList.add('pop');
+    setTimeout(()=>sc.classList.remove('pop'),350);
+  }
+
+  // Progress fill
+  document.getElementById('hud-prog').style.width=(((activeStep+1)/total)*100)+'%';
+  document.getElementById('hud-prog-txt').textContent=(activeStep+1)+'/'+total;
+  // Current pip done
+  const pip=document.getElementById('pip-'+activeStep);
+  if(pip)pip.className='step-pip done';
+
+  const isLast=activeStep>=total-1;
+  const fb=document.getElementById('fb-box');
+  fb.className='feedback-box show '+(opt.ok?'fb-ok':'fb-bad');
+  fb.innerHTML=`
+    <div class="fb-head ${opt.ok?'ok':'bad'}">${opt.ok?'✅ CORRECTO':'❌ INCORRECTO'}</div>
+    <div class="fb-body">${opt.fb}</div>
+    <button class="next-btn" onclick="nextStep()">${isLast?'🏆 VER RESULTADOS':'→ SIGUIENTE ESCENA'}</button>
+  `;
+  fb.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ══════════════════════════════════════════════
+// NEXT STEP
+// ══════════════════════════════════════════════
+function nextStep(){
+  const total=CASES[activeCase].steps.length;
+  const content=document.getElementById('g-content');
+  content.style.transition='opacity 0.25s ease,transform 0.25s ease';
+  content.style.opacity='0';content.style.transform='translateY(-12px)';
+  setTimeout(()=>{
+    content.style.transition='';content.style.opacity='1';content.style.transform='translateY(0)';
+    activeStep++;
+    if(activeStep>=total)showSuccess();
+    else renderStep(true);
+  },280);
+}
+
+// ══════════════════════════════════════════════
+// SUCCESS
+// ══════════════════════════════════════════════
+function showSuccess(){
+  const c=CASES[activeCase];
+  const total=c.steps.length;
+  const pct=Math.round((correctCount/total)*100);
+  let grade,gradeClass,trophy;
+  if(pct>=90){grade='¡PERFECTO!';gradeClass='grade-perfect';trophy='🏆';}
+  else if(pct>=70){grade='¡MUY BIEN!';gradeClass='grade-good';trophy='⭐';}
+  else if(pct>=50){grade='APROBADO';gradeClass='grade-ok';trophy='✅';}
+  else{grade='A REPASAR';gradeClass='grade-poor';trophy='📚';}
+
+  document.getElementById('suc-trophy').textContent=trophy;
+  document.getElementById('suc-grade').textContent=grade;
+  document.getElementById('suc-grade').className='success-grade '+gradeClass;
+  document.getElementById('suc-case').textContent=c.label;
+  document.getElementById('suc-pts').textContent=score;
+  document.getElementById('suc-pct').textContent=pct+'%';
+  document.getElementById('suc-correct').textContent=correctCount+'/'+total;
+  showScreen('success');
+}
+</script>
+</body>
+</html>
